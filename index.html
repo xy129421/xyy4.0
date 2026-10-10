@@ -2627,7 +2627,7 @@ function initQA(){
     const question = input.value.trim().slice(0, 100);
     if(!question) return;
     const title = issuePrefix + question;
-    const body = '来自个人网站「你问我答」的提问。\n\n问题：' + question + '\n\n请在评论区交流。';
+    const body = '来自个人网站「你问我答」的提问，邀请 @xy129421 回答。\n\n问题：' + question + '\n\n请在评论区交流。';
     window.location.assign('https://github.com/' + repo + '/issues/new?title=' + encodeURIComponent(title) + '&body=' + encodeURIComponent(body));
   });
   window.addEventListener('hashchange', () => {
