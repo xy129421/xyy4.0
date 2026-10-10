@@ -1198,12 +1198,33 @@ a, button { touch-action: manipulation; }
 .qa-form input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(var(--accent-rgb), .14); }
 .qa-form button { border-radius: 12px; padding: 10px 20px; background: var(--grad); color: white; font-size: .84rem; font-weight: 700; cursor: pointer; }
 .qa-form button:hover { filter: brightness(1.1); }
+.qa-label { margin-top: 18px; color: var(--muted); font-size: .75rem; font-weight: 700; }
+.qa-direct, .qa-public { margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--rule); }
+.qa-direct h4, .qa-public h4 { font-size: 1rem; margin-bottom: 6px; }
+.qa-direct > p, .qa-note { color: var(--muted); font-size: .78rem; line-height: 1.7; }
+.qa-direct .qa-form { margin-top: 14px; }
+.qa-direct .qa-note { margin-top: 9px; }
+.qa-public-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.qa-public-head a, .qa-public-head button { color: var(--accent2); font-size: .75rem; font-weight: 700; }
+.qa-public-head button { cursor: pointer; background: none; border: 0; padding: 0; }
+.qa-public-head a:hover, .qa-public-head button:hover { text-decoration: underline; }
+.qa-public-list { display: grid; gap: 10px; margin-top: 14px; }
+.qa-public-item { padding: 15px; border: 1px solid var(--rule); border-radius: 14px; background: var(--glass); }
+.qa-public-meta { color: var(--muted); font-size: .7rem; margin-bottom: 5px; }
+.qa-public-question { font-size: .87rem; font-weight: 700; line-height: 1.6; overflow-wrap: anywhere; }
+.qa-public-answer { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .82rem; line-height: 1.7; margin-top: 10px; }
+.qa-public-answer b { color: var(--accent2); }
+.qa-public-answer.pending { color: var(--muted); }
+.qa-public-item > a { display: inline-block; margin-top: 10px; color: var(--accent2); font-size: .74rem; font-weight: 700; }
+.qa-public-item > a:hover { text-decoration: underline; }
+.qa-empty { color: var(--muted); font-size: .8rem; line-height: 1.7; }
 @media (max-width: 600px) {
   .qa-shell { padding: 20px 16px; }
   .qa-head { align-items: start; flex-direction: column; }
   .qa-toggle { width: 100%; justify-content: center; }
   .qa-log { padding: 12px; }
   .qa-bubble { max-width: 96%; }
+  .qa-form { flex-direction: column; }
   .qa-form button { padding: 10px 14px; }
 }
 
@@ -1778,16 +1799,26 @@ footer {
     <div class="sec-line reveal"></div>
     <div class="card qa-shell reveal">
       <div class="qa-head">
-        <div><span class="qa-kicker">A CONVERSATION WITH ME</span><h3>想了解哪一面？</h3><p>选择一个问题，或写下你想问的事。这里的回答来自网站中记录的真实经历。</p></div>
+        <div><span class="qa-kicker">A CONVERSATION WITH ME</span><h3>想了解哪一面？</h3><p>常见问题可以马上查看已有回答；新问题会送到 GitHub，由我亲自回复。</p></div>
         <button class="btn btn-primary qa-toggle" id="qaToggle" type="button" aria-expanded="false" aria-controls="qaPanel">进入问答模式 ↗</button>
       </div>
       <div class="qa-panel" id="qaPanel" hidden>
         <div class="qa-log" id="qaLog" role="log" aria-label="问答记录" aria-live="polite" aria-relevant="additions"></div>
+        <p class="qa-label">常见问题 · 点击查看已有回答</p>
         <div class="qa-suggestions" id="qaSuggestions" role="group" aria-label="可以问的问题"></div>
-        <form class="qa-form" id="qaForm">
-          <input id="qaInput" type="text" name="question" maxlength="100" required autocomplete="off" aria-label="输入你想问的问题" placeholder="例如：你在大挑中做了什么？">
-          <button type="submit">提问</button>
-        </form>
+        <div class="qa-direct">
+          <h4>想让我亲自回答？</h4>
+          <p>写下问题后会打开 GitHub，登录并确认发布。我会在问题下回复，回答也会出现在这里。</p>
+          <form class="qa-form" id="qaForm">
+            <input id="qaInput" type="text" name="question" maxlength="100" required autocomplete="off" aria-label="输入想让我亲自回答的问题" placeholder="写下你想问我的问题……">
+            <button type="submit">去 GitHub 提问 ↗</button>
+          </form>
+          <p class="qa-note">问题和回答都会公开。请不要填写联系方式等私人信息。</p>
+        </div>
+        <div class="qa-public">
+          <div class="qa-public-head"><h4>大家问，我来答</h4><div><button type="button" id="qaRefresh">刷新回答</button> · <a href="https://github.com/xy129421/xyy4.0/issues" target="_blank" rel="noopener noreferrer">查看全部问题 ↗</a></div></div>
+          <div class="qa-public-list" id="qaPublicList" aria-live="polite"><p class="qa-empty">打开问答后会加载公开问题。</p></div>
+        </div>
       </div>
     </div>
   </section>
@@ -2453,8 +2484,11 @@ function renderQuote(){
 function initQA(){
   const toggle = $('#qaToggle'), panel = $('#qaPanel'), log = $('#qaLog');
   const suggestions = $('#qaSuggestions'), form = $('#qaForm'), input = $('#qaInput');
+  const publicList = $('#qaPublicList'), refresh = $('#qaRefresh');
   if(!toggle || !panel || !log || !form) return;
-  let started = false;
+  const issuePrefix = '[你问我答] ';
+  const repo = 'xy129421/xyy4.0';
+  let started = false, publicLoaded = false, publicLoading = false;
 
   function addBubble(who, message, href, linkText){
     const bubble = el('div', 'qa-bubble ' + who);
@@ -2502,15 +2536,78 @@ function initQA(){
     }
   }
 
+  async function loadPublicQuestions(){
+    if(publicLoading || !publicList) return;
+    publicLoading = true;
+    if(refresh) refresh.disabled = true;
+    publicList.replaceChildren(el('p', 'qa-empty', '正在加载公开问题……'));
+    try {
+      const response = await fetch('https://api.github.com/repos/' + repo + '/issues?state=all&per_page=100&sort=created&direction=desc', {
+        headers: { Accept: 'application/vnd.github+json' }, cache: 'no-store'
+      });
+      if(!response.ok) throw new Error('GitHub issues: ' + response.status);
+      const data = await response.json();
+      const issues = data.filter(issue => !issue.pull_request && issue.title && issue.title.startsWith(issuePrefix)).slice(0, 6);
+      publicList.replaceChildren();
+      if(!issues.length){
+        publicList.appendChild(el('p', 'qa-empty', '还没有公开提问。欢迎来问第一个问题！'));
+        return;
+      }
+      const entries = await Promise.all(issues.map(async issue => {
+        if(!issue.comments) return { issue, answer: null, failed: false };
+        try {
+          const reply = await fetch('https://api.github.com/repos/' + repo + '/issues/' + issue.number + '/comments?per_page=100', {
+            headers: { Accept: 'application/vnd.github+json' }, cache: 'no-store'
+          });
+          if(!reply.ok) throw new Error('GitHub comments: ' + reply.status);
+          const comments = await reply.json();
+          const mine = comments.filter(comment => comment.user && comment.user.login && comment.user.login.toLowerCase() === 'xy129421');
+          return { issue, answer: mine.length ? mine[mine.length - 1] : null, failed: false };
+        } catch(error){
+          return { issue, answer: null, failed: true };
+        }
+      }));
+      entries.forEach(({ issue, answer, failed }) => {
+        const card = el('article', 'qa-public-item');
+        const date = new Date(issue.created_at).toLocaleDateString('zh-CN');
+        const meta = el('p', 'qa-public-meta');
+        meta.textContent = (issue.user && issue.user.login ? '@' + issue.user.login : '访客') + ' · ' + date;
+        const question = el('p', 'qa-public-question');
+        question.textContent = issue.title.slice(issuePrefix.length);
+        const answerBox = el('div', 'qa-public-answer' + (answer ? '' : ' pending'));
+        if(answer){
+          answerBox.appendChild(el('b', null, '熊羽亲自回答：'));
+          const answerText = el('span');
+          const body = String(answer.body || '').trim();
+          answerText.textContent = '\n' + (body.length > 600 ? body.slice(0, 600) + '…' : body);
+          answerBox.appendChild(answerText);
+        } else {
+          answerBox.textContent = failed ? '回答暂时无法加载，请到 GitHub 查看。' : '等待我回复……';
+        }
+        const link = el('a', null, '在 GitHub 查看完整对话 ↗');
+        link.href = 'https://github.com/' + repo + '/issues/' + issue.number;
+        link.target = '_blank'; link.rel = 'noopener noreferrer';
+        card.append(meta, question, answerBox, link);
+        publicList.appendChild(card);
+      });
+    } catch(error){
+      publicList.replaceChildren(el('p', 'qa-empty', '公开问答暂时加载失败。可以点击上方链接，在 GitHub 查看问题。'));
+    } finally {
+      publicLoading = false;
+      if(refresh) refresh.disabled = false;
+    }
+  }
+
   function setOpen(open){
     panel.hidden = !open;
     toggle.setAttribute('aria-expanded', String(open));
     toggle.textContent = open ? '收起问答 ↑' : '进入问答模式 ↗';
     if(open){
       if(!started){
-        addBubble('me', '你好呀！可以点下面的问题，也可以自己输入。这里的回答来自这份网站已有的经历记录。');
+        addBubble('me', '你好呀！点击常见问题可以马上看已有回答。想让我亲自回答，请在下方写下问题并通过 GitHub 发布。');
         started = true;
       }
+      if(!publicLoaded){ publicLoaded = true; loadPublicQuestions(); }
       input.focus({ preventScroll: true });
     } else {
       toggle.focus({ preventScroll: true });
@@ -2524,11 +2621,14 @@ function initQA(){
     suggestions.appendChild(chip);
   });
   toggle.addEventListener('click', () => setOpen(panel.hidden));
+  if(refresh) refresh.addEventListener('click', loadPublicQuestions);
   form.addEventListener('submit', event => {
     event.preventDefault();
-    const question = input.value;
-    input.value = '';
-    ask(question);
+    const question = input.value.trim().slice(0, 100);
+    if(!question) return;
+    const title = issuePrefix + question;
+    const body = '来自个人网站「你问我答」的提问。\n\n问题：' + question + '\n\n请在评论区交流。';
+    window.location.assign('https://github.com/' + repo + '/issues/new?title=' + encodeURIComponent(title) + '&body=' + encodeURIComponent(body));
   });
   window.addEventListener('hashchange', () => {
     if(location.hash === '#ask' && panel.hidden) setOpen(true);
